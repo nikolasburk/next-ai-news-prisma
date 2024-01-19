@@ -1,10 +1,11 @@
 "use server";
 
 import z from "zod";
-import { db, storiesTable, genStoryId } from "@/app/db";
+import { genStoryId } from "@/app/db";
 import { auth } from "@/app/auth";
 import { redirect } from "next/navigation";
 import { newStoryRateLimit } from "@/lib/rate-limit";
+import prisma from "@/lib/prisma";
 
 const SubmitActionSchema = z
   .object({
@@ -41,10 +42,7 @@ export type SubmitActionData = {
       };
 };
 
-export async function submitAction(
-  _prevState: any,
-  formData: FormData
-): Promise<SubmitActionData | void> {
+export async function submitAction(_prevState: any, formData: FormData): Promise<SubmitActionData | void> {
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -85,16 +83,19 @@ export async function submitAction(
   const id = genStoryId();
 
   try {
-    await db.insert(storiesTable).values({
-      id,
-      type: getType(input.data.title as string),
-      title: input.data.title as string,
-      points: 1,
-      domain: input.data.url
-        ? new URL(input.data.url as string).hostname
-        : null,
-      submitted_by: userId,
+
+    const story = await prisma.stories.create({
+      data: {
+        id: genStoryId(),
+        type: getType(input.data.title as string),
+        title: input.data.title as string,
+        points: 1,
+        domain: input.data.url ? new URL(input.data.url as string).hostname : null,
+        submitted_by: userId,
+      },
     });
+    console.log(`created story`, story)
+
   } catch (e) {
     console.error(e);
     return {

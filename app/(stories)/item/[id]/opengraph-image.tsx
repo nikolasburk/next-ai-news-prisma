@@ -2,9 +2,8 @@ export const runtime = "edge";
 export const revalidate = 60;
 
 import { ImageResponse } from "next/og";
-import { db, usersTable, storiesTable } from "@/app/db";
-import { sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import prisma from "@/lib/prisma"
 
 /**
  * v0 by Vercel.
@@ -17,26 +16,26 @@ export default async function MainOG({
   params: { id: string };
 }) {
   id = `story_${id}`;
-  const story = (
-    await db
-      .select({
-        id: storiesTable.id,
-        title: storiesTable.title,
-        comments_count: storiesTable.comments_count,
-        author: storiesTable.submitted_by,
-        domain: storiesTable.domain,
-        submitted_by: usersTable.username,
-        username: storiesTable.username,
-        created_at: storiesTable.created_at,
-      })
-      .from(storiesTable)
-      .where(sql`${storiesTable.id} = ${id}`)
-      .limit(1)
-      .leftJoin(
-        usersTable,
-        sql`${usersTable.id} = ${storiesTable.submitted_by}`
-      )
-  )[0];
+
+  const story = await prisma.stories.findUnique({
+    select: {
+      id: true,
+      title: true,
+      comments_count: true,
+      submitted_by: true, // author
+      username: true,
+      domain: true,
+      author: {
+        select: {
+          username: true // username
+        }
+      },
+      created_at: true,
+    },
+    where: {
+      id
+    }
+  })
 
   if (!story) {
     notFound();

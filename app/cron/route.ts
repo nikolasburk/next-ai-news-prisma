@@ -4,13 +4,10 @@ import { ZodFunctionDef, toTool } from "openai-zod-functions";
 import type { NextRequest } from "next/server";
 import psl from "psl";
 import {
-  db,
-  storiesTable,
-  commentsTable,
   genStoryId,
   genCommentId,
 } from "@/app/db";
-import { sql } from "drizzle-orm";
+import prisma from "@/lib/prisma"
 
 export const maxDuration = 120;
 
@@ -51,80 +48,72 @@ const CommentsSchema = z.array(
 type Comments = z.infer<typeof CommentsSchema>;
 
 export async function GET(request: NextRequest) {
-  // const authHeader = request.headers.get("authorization");
+  const authHeader = request.headers.get("authorization");
 
-  // if (!process.env.CRON_SECRET && process.env.NODE_ENV !== "development") {
-  //   return Response.json(
-  //     { success: false, message: "Cron validation failed" },
-  //     { status: 500 }
-  //   );
-  // }
+  if (!process.env.CRON_SECRET && process.env.NODE_ENV !== "development") {
+    return Response.json(
+      { success: false, message: "Cron validation failed" },
+      { status: 500 }
+    );
+  }
 
-  // if (
-  //   process.env.NODE_ENV !== "development" &&
-  //   authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  // ) {
-  //   return Response.json({ success: false }, { status: 401 });
-  // }
+  if (
+    process.env.NODE_ENV !== "development" &&
+    authHeader !== `Bearer ${process.env.CRON_SECRET}`
+  ) {
+    return Response.json({ success: false }, { status: 401 });
+  }
 
-//   const { stories }: { stories: Stories } = await complete(
-//     `give me 5 hacker news (HN) stories. 
+  const { stories }: { stories: Stories } = await complete(
+    `give me 5 hacker news (HN) stories. 
 
-// Follow the following instructions accurately:
+Follow the following instructions accurately:
 
-// - Make the titles as realistic as possible.
-// - If the story is in the first person and showing some work, prefix it with Show HN:
-// - If the story is a question, prefix it with Ask HN:
-// - If the story is about hiring, use the HN format for example '{Company} (YC {Season}) is hiring {Role}'. Replace the {} variables with creative values
-// - Most titles should not be in the first person, and should not be prefixed.
-// - NEVER include a prefix like "Prefix:" for jobs and hiring titles
-// - Only include at most 1 show, 1 ask and 1 hiring title
-// `,
-//     [
-//       {
-//         name: "get_stories",
-//         description: "Get stories from hacker news (HN)",
-//         schema: z.object({
-//           stories: StoriesSchema,
-//         }),
-//       },
-//     ]
-//   );
+- Make the titles as realistic as possible.
+- If the story is in the first person and showing some work, prefix it with Show HN:
+- If the story is a question, prefix it with Ask HN:
+- If the story is about hiring, use the HN format for example '{Company} (YC {Season}) is hiring {Role}'. Replace the {} variables with creative values
+- Most titles should not be in the first person, and should not be prefixed.
+- NEVER include a prefix like "Prefix:" for jobs and hiring titles
+- Only include at most 1 show, 1 ask and 1 hiring title
+`,
+    [
+      {
+        name: "get_stories",
+        description: "Get stories from hacker news (HN)",
+        schema: z.object({
+          stories: StoriesSchema,
+        }),
+      },
+    ]
+  );
 
-  // const storiesWithIds: (Story & { id: string })[] = stories
-  //   .map((story) => {
-  //     return {
-  //       ...story,
-  //       id: genStoryId(),
-  //       title: story.title.trim(),
-  //       points: Math.max(1, story.points),
-  //       username: story.username.toLowerCase().trim().replace(/\s/g, ""),
-  //       domain: story.domain.toLowerCase().trim(),
-  //     };
-  //   })
-  //   .filter((story) => {
-  //     return isValidDomain(story.domain);
-  //   });
-
-  const storiesWithIds: (Story & { id: string })[] = []
+  const storiesWithIds: (Story & { id: string })[] = stories
+    .map((story) => {
+      return {
+        ...story,
+        id: genStoryId(),
+        title: story.title.trim(),
+        points: Math.max(1, story.points),
+        username: story.username.toLowerCase().trim().replace(/\s/g, ""),
+        domain: story.domain.toLowerCase().trim(),
+      };
+    })
+    .filter((story) => {
+      return isValidDomain(story.domain);
+    });
 
   if (!storiesWithIds.length) {
     console.error("No stories returned");
     return Response.json({ success: false }, { status: 500 });
   }
 
-  await db.insert(storiesTable).values(
-    storiesWithIds.map((story) => {
-      return {
-        id: story.id,
-        type: story.type,
-        title: story.title,
-        domain: story.domain,
-        username: story.username,
-        points: story.points,
-      };
-    })
-  );
+  await prisma.stories.createMany({
+    data: storiesWithIds
+  })
+
+
+
 
   console.log(
     "Inserted stories",
@@ -162,9 +151,10 @@ export async function GET(request: NextRequest) {
         );
 
         if (uniqueComments.length) {
-          // await db.transaction(async (tx) => {
-          await db.insert(commentsTable).values(
-            uniqueComments.map((comment) => {
+          const queries = []
+
+          const createComments = prisma.comments.createMany({
+            data: uniqueComments.map((comment) => {
               const uid = commentIdToUid[comment.id];
 
               return {
@@ -178,15 +168,22 @@ export async function GET(request: NextRequest) {
                 comment: comment.comment.trim(),
               };
             })
-          );
+          })
+          queries.push(createComments)
 
-          await db
-            .update(storiesTable)
-            .set({
-              comments_count: sql`${storiesTable.comments_count} + ${comments.length}`,
-            })
-            .where(sql`${storiesTable.id} = ${story.id}`);
-          // });
+          const updateStories = prisma.stories.update({
+            where: {
+              id: story.id
+            },
+            data: {
+              comments_count: {
+                increment: comments.length
+              }
+            }
+          })
+          queries.push(updateStories)
+          await prisma.$transaction(queries)
+          
 
           console.log(
             `Inserted ${comments.length} comments for story ${story.title}`
