@@ -1,10 +1,9 @@
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { db, usersTable } from "./db";
 import { compare } from "bcrypt";
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { sql } from "drizzle-orm";
+import { PrismaAdapter } from "@auth/prisma-adapter";
 import { nanoid } from "nanoid";
+import prisma from '@/lib/prisma'
 
 const authOptions: NextAuthConfig = {
   session: {
@@ -18,7 +17,7 @@ const authOptions: NextAuthConfig = {
       return session;
     },
   },
-  adapter: DrizzleAdapter(db),
+  adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
       credentials: {
@@ -46,13 +45,12 @@ async function authorize(
 
   const reqId = req.headers.get("x-vercel-id") ?? nanoid();
   console.time(`fetch user for login ${reqId}`);
-  const maybeUser = (
-    await db
-      .select()
-      .from(usersTable)
-      .where(sql`${usersTable.username} = ${credentials.username}`)
-      .limit(1)
-  )[0];
+
+  const maybeUser = await prisma.users.findUnique({
+    where: {
+      username: credentials.username as string
+    }
+  });
   console.timeEnd(`fetch user for login ${reqId}`);
 
   if (!maybeUser) {

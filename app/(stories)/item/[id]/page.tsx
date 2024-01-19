@@ -1,13 +1,12 @@
-import { db, usersTable, storiesTable } from "@/app/db";
 import { TimeAgo } from "@/components/time-ago";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { nanoid } from "nanoid";
-import { sql } from "drizzle-orm";
 import { Suspense } from "react";
 import { Comments } from "@/components/comments";
 import { ReplyForm } from "./reply-form";
 import Link from "next/link";
+import prisma from "@/lib/prisma"
 
 export const metadata = {
   openGraph: {
@@ -25,27 +24,32 @@ export const metadata = {
 
 const getStory = async function getStory(idParam: string) {
   const id = `story_${idParam}`;
-  return (
-    await db
-      .select({
-        id: storiesTable.id,
-        title: storiesTable.title,
-        domain: storiesTable.domain,
-        url: storiesTable.url,
-        username: storiesTable.username,
-        points: storiesTable.points,
-        submitted_by: usersTable.username,
-        comments_count: storiesTable.comments_count,
-        created_at: storiesTable.created_at,
-      })
-      .from(storiesTable)
-      .where(sql`${storiesTable.id} = ${id}`)
-      .limit(1)
-      .leftJoin(
-        usersTable,
-        sql`${usersTable.id} = ${storiesTable.submitted_by}`
-      )
-  )[0];
+
+
+  const story = await prisma.stories.findUnique({
+    select: {
+      id: true,
+      title: true,
+      domain: true,
+      url: true,
+      points: true,
+      author: {
+        select: {
+          username: true
+        }
+      },
+      username: true,
+      comments_count: true,
+      submitted_by: true, 
+      created_at: true,
+    },
+    where: {
+      id
+    }
+  })
+
+
+  return story;
 };
 
 /**

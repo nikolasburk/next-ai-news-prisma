@@ -3,12 +3,12 @@
 import { signIn } from "@/app/auth";
 import { AuthError } from "next-auth";
 import z from "zod";
-import { db, usersTable, genUserId } from "@/app/db";
-import { sql } from "drizzle-orm";
 import { hash } from "bcrypt";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { authRateLimit, signUpRateLimit } from "@/lib/rate-limit";
+import prisma from "@/lib/prisma";
+import { genUserId } from "@/app/db"
 
 const UserSchema = z.object({
   username: z
@@ -31,10 +31,7 @@ export type SignInActionData = {
   };
 };
 
-export async function signInAction(
-  _prevState: any,
-  formData: FormData
-): Promise<SignInActionData | void> {
+export async function signInAction(_prevState: any, formData: FormData): Promise<SignInActionData | void> {
   const ip = headers().get("x-real-ip") ?? "local";
   const rl = await authRateLimit.limit(ip);
 
@@ -50,9 +47,7 @@ export async function signInAction(
   const input = UserSchema.safeParse({
     username: formData.get("username"),
     password: formData.get("password"),
-    next:
-      formData.get("next") ||
-      undefined /* <input type=hidden value=''> should become the default next */,
+    next: formData.get("next") || undefined /* <input type=hidden value=''> should become the default next */,
   });
 
   if (!input.success) {
@@ -110,10 +105,7 @@ export type SignUpActionData = {
       };
 };
 
-export async function signUpAction(
-  _prevState: any,
-  formData: FormData
-): Promise<SignUpActionData | void> {
+export async function signUpAction(_prevState: any, formData: FormData): Promise<SignUpActionData | void> {
   const ip = headers().get("x-real-ip") ?? "local";
   const rl = await authRateLimit.limit(ip);
 
@@ -129,9 +121,7 @@ export async function signUpAction(
   const input = UserSchema.safeParse({
     username: formData.get("username"),
     password: formData.get("password"),
-    next:
-      formData.get("next") ||
-      undefined /* <input type=hidden value=''> should become the default next */,
+    next: formData.get("next") || undefined /* <input type=hidden value=''> should become the default next */,
   });
 
   if (!input.success) {
@@ -144,13 +134,13 @@ export async function signUpAction(
     };
   }
 
-  const user = await db
-    .select()
-    .from(usersTable)
-    .where(sql`${usersTable.username} = ${input.data.username}`)
-    .limit(1);
+  const user = await prisma.users.findUnique({
+    where: {
+      username: input.data.username,
+    },
+  });
 
-  if (user.length > 0) {
+  if (user) {
     return {
       error: {
         code: "VALIDATION_ERROR",
@@ -173,12 +163,16 @@ export async function signUpAction(
   }
 
   try {
-    await db.insert(usersTable).values({
-      id: genUserId(),
-      username: input.data.username,
-      password: await hash(input.data.password, 10),
+    console.log(`create user`, input.data)
+    await prisma.users.create({
+      data: {
+        id: genUserId(),
+        username: input.data.username,
+        password: await hash(input.data.password, 10),
+      },
     });
   } catch (err) {
+    console.log(`error`, err)
     return {
       error: {
         code: "INTERNAL_ERROR",

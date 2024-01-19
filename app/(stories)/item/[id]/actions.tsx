@@ -1,17 +1,11 @@
 "use server";
 
 import z from "zod";
-import {
-  db,
-  usersTable,
-  storiesTable,
-  commentsTable,
-  genCommentId,
-} from "@/app/db";
 import { auth } from "@/app/auth";
-import { sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { newCommentRateLimit } from "@/lib/rate-limit";
+import prisma from "@/lib/prisma";
+import { genCommentId } from "@/app/db"
 
 const ReplyActionSchema = z.object({
   storyId: z.string(),
@@ -41,10 +35,7 @@ export type ReplyActionData = {
       };
 };
 
-export async function replyAction(
-  _prevState: any,
-  formData: FormData
-): Promise<ReplyActionData | void> {
+export async function replyAction(_prevState: any, formData: FormData): Promise<ReplyActionData | void> {
   const session = await auth();
 
   if (!session?.user?.id) {
@@ -70,13 +61,11 @@ export async function replyAction(
     };
   }
 
-  const user = (
-    await db
-      .select()
-      .from(usersTable)
-      .where(sql`${usersTable.id} = ${session.user.id}`)
-      .limit(1)
-  )[0];
+  const user = await prisma.users.findUnique({
+    where: {
+      id: session.user.id,
+    },
+  });
 
   if (!user) {
     return {
@@ -100,37 +89,40 @@ export async function replyAction(
 
   // TODO: use transactions, but Neon doesn't support them yet
   // in the serverless http driver :raised-eyebrow:
-  // await db.transaction(async (tx) => {
-  const tx = db;
+  // await transaction(async (tx) => {
   try {
-    const story = (
-      await tx
-        .select({
-          id: storiesTable.id,
-        })
-        .from(storiesTable)
-        .where(sql`${storiesTable.id} = ${data.data.storyId}`)
-        .limit(1)
-    )[0];
+    const story = await prisma.stories.findUnique({
+      where: {
+        id: data.data.storyId,
+      },
+    });
 
     if (!story) {
       throw new Error("Story not found");
     }
 
-    await tx
-      .update(storiesTable)
-      .set({
-        comments_count: sql`${storiesTable.comments_count} + 1`,
-      })
-      .where(sql`${storiesTable.id} = ${story.id}`);
+    await prisma.stories.update({
+      where: {
+        id: story.id,
+      },
+      data: {
+        comments_count: {
+          increment: 1,
+        },
+      },
+    });
 
-    const commentId = genCommentId();
-
-    await tx.insert(commentsTable).values({
-      id: commentId,
-      story_id: story.id,
-      author: user.id,
-      comment: data.data.text,
+    const commentId = genCommentId()
+    await prisma.comments.create({
+      data: {
+        id: commentId,
+        story_id: story.id,
+        author: user.id,
+        comment: data.data.text,
+      },
+      select: {
+        id: true,
+      },
     });
 
     revalidatePath(`/items/${story.id}`);

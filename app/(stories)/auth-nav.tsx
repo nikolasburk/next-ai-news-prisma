@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { auth } from "@/app/auth";
-import { db, usersTable } from "@/app/db";
-import { sql } from "drizzle-orm";
 import { Logout } from "./logout";
+import prisma from "@/lib/prisma"
 
 export async function AuthNav() {
   // fast path to being logged out, no i/o needed
@@ -17,14 +16,11 @@ export async function AuthNav() {
     return <LoggedOut />;
   }
 
-  const user = (
-    await db
-      .select()
-      .from(usersTable)
-      .where(sql`${usersTable.id} = ${session.user.id}`)
-      .limit(1)
-  )[0];
 
+  const user = await prisma.users.findUnique({
+    where: { id: session.user.id}
+  })
+ 
   if (!user) {
     console.error("user not found in db, invalid session", session);
     return <LoggedOut />;

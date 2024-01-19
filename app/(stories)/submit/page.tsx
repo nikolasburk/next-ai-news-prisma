@@ -1,8 +1,8 @@
 import { auth } from "@/app/auth";
 import { redirect } from "next/navigation";
-import { db, usersTable } from "@/app/db";
 import { cookies } from "next/headers";
 import { SubmitForm } from "./form";
+import prisma from "@/lib/prisma"
 
 /**
  * v0 by Vercel.
@@ -22,13 +22,7 @@ export default async function Submit() {
     redirect("/login/next/submit");
   }
 
-  const user = (
-    await db
-      .select({
-        id: usersTable.id,
-      })
-      .from(usersTable)
-  )[0];
+  const user = await prisma.users.findFirst()
 
   if (!user) {
     redirect("/login");
