@@ -9,7 +9,7 @@ A full-stack replica of HN using Next.js and AI generated content.
   - All mutations are done via [Server Actions](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations)
   - [Streaming](https://nextjs.org/docs/app/building-your-application/routing/loading-ui-and-streaming) is used throughout to maximize speed and concurrency
 - Uses [pnpm](https://pnpm.io/installation) for package management
-- Uses [Drizzle ORM](https://orm.drizzle.team/docs/overview) and Zod as the data layer
+- Uses [Prisma ORM](https://www.prisma.io/docs) and Zod as the data layer
 - Uses [Auth.js](https://authjs.dev/)'s [Next-Auth](https://next-auth.js.org/) for password authentication
 - Used [v0](https://v0.dev) to generate all initial UIs with
   [Tailwind](https://tailwindcss.com/), [Shadcn UI](https://ui.shadcn.com/) and [Radix UI](https://www.radix-ui.com/)
@@ -34,17 +34,17 @@ A full-stack replica of HN using Next.js and AI generated content.
 
 - Make sure the Vercel project is connected to a Vercel Postgres (Neon) database
 - Optionally, for rate limiting, add a Vercel KV (Upstash) database
-- Run `pnpm drizzle-kit push:pg`
+- Run `pnpx prisma migrate dev`
 - Update `metadataBase` in `app/layout.tsx` to match your target domain
 
 ### Local dev
 
 - Run `vc env pull` to get a `.env.local` file with your db credentials.
 - Run `pnpm dev` to start developing
-- For DB migrations with `drizzle-kit`:
+- For DB migrations with Prisma ORM:
   - Make sure `?sslmode=required` is added to the `POSTGRES_URL` env for dev
-  - Run `pnpm drizzle-kit generate:pg` to generate migrations
-  - Run `pnpm drizzle-kit push:pg` to apply them
+  - Run `pnpx prisma migrate dev` to generate and apply migrations
+  - Run `pnpx prisma generate` after schema changes
 
 ### Performance
 
@@ -55,7 +55,7 @@ A full-stack replica of HN using Next.js and AI generated content.
 
 ### Codebase notes
 
-- Auth is initialized in `app/auth.tsx`, Drizzle in `app/db.tsx`.
+- Auth is initialized in `app/auth.tsx`, Drizzle in `lib/prisma.tsx`.
 - Shared components are in `./components` (exposed as `@/components`)
 - Only one component was not reused from npm / shadcn ([`components/time-ago.tsx`](components/time-ago.tsx))
   - I couldn't find something very light that worked well with server-rendering (takes a `now` prop with a timestamp)
