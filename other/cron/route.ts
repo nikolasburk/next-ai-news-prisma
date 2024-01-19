@@ -51,60 +51,62 @@ const CommentsSchema = z.array(
 type Comments = z.infer<typeof CommentsSchema>;
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization");
+  // const authHeader = request.headers.get("authorization");
 
-  if (!process.env.CRON_SECRET && process.env.NODE_ENV !== "development") {
-    return Response.json(
-      { success: false, message: "Cron validation failed" },
-      { status: 500 }
-    );
-  }
+  // if (!process.env.CRON_SECRET && process.env.NODE_ENV !== "development") {
+  //   return Response.json(
+  //     { success: false, message: "Cron validation failed" },
+  //     { status: 500 }
+  //   );
+  // }
 
-  if (
-    process.env.NODE_ENV !== "development" &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
-    return Response.json({ success: false }, { status: 401 });
-  }
+  // if (
+  //   process.env.NODE_ENV !== "development" &&
+  //   authHeader !== `Bearer ${process.env.CRON_SECRET}`
+  // ) {
+  //   return Response.json({ success: false }, { status: 401 });
+  // }
 
-  const { stories }: { stories: Stories } = await complete(
-    `give me 5 hacker news (HN) stories. 
+//   const { stories }: { stories: Stories } = await complete(
+//     `give me 5 hacker news (HN) stories. 
 
-Follow the following instructions accurately:
+// Follow the following instructions accurately:
 
-- Make the titles as realistic as possible.
-- If the story is in the first person and showing some work, prefix it with Show HN:
-- If the story is a question, prefix it with Ask HN:
-- If the story is about hiring, use the HN format for example '{Company} (YC {Season}) is hiring {Role}'. Replace the {} variables with creative values
-- Most titles should not be in the first person, and should not be prefixed.
-- NEVER include a prefix like "Prefix:" for jobs and hiring titles
-- Only include at most 1 show, 1 ask and 1 hiring title
-`,
-    [
-      {
-        name: "get_stories",
-        description: "Get stories from hacker news (HN)",
-        schema: z.object({
-          stories: StoriesSchema,
-        }),
-      },
-    ]
-  );
+// - Make the titles as realistic as possible.
+// - If the story is in the first person and showing some work, prefix it with Show HN:
+// - If the story is a question, prefix it with Ask HN:
+// - If the story is about hiring, use the HN format for example '{Company} (YC {Season}) is hiring {Role}'. Replace the {} variables with creative values
+// - Most titles should not be in the first person, and should not be prefixed.
+// - NEVER include a prefix like "Prefix:" for jobs and hiring titles
+// - Only include at most 1 show, 1 ask and 1 hiring title
+// `,
+//     [
+//       {
+//         name: "get_stories",
+//         description: "Get stories from hacker news (HN)",
+//         schema: z.object({
+//           stories: StoriesSchema,
+//         }),
+//       },
+//     ]
+//   );
 
-  const storiesWithIds: (Story & { id: string })[] = stories
-    .map((story) => {
-      return {
-        ...story,
-        id: genStoryId(),
-        title: story.title.trim(),
-        points: Math.max(1, story.points),
-        username: story.username.toLowerCase().trim().replace(/\s/g, ""),
-        domain: story.domain.toLowerCase().trim(),
-      };
-    })
-    .filter((story) => {
-      return isValidDomain(story.domain);
-    });
+  // const storiesWithIds: (Story & { id: string })[] = stories
+  //   .map((story) => {
+  //     return {
+  //       ...story,
+  //       id: genStoryId(),
+  //       title: story.title.trim(),
+  //       points: Math.max(1, story.points),
+  //       username: story.username.toLowerCase().trim().replace(/\s/g, ""),
+  //       domain: story.domain.toLowerCase().trim(),
+  //     };
+  //   })
+  //   .filter((story) => {
+  //     return isValidDomain(story.domain);
+  //   });
+
+  const storiesWithIds: (Story & { id: string })[] = []
 
   if (!storiesWithIds.length) {
     console.error("No stories returned");
